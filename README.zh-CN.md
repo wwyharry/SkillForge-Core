@@ -168,6 +168,7 @@ exports/
     └── assets/
         └── template.txt
 ```
+**由于文件比较多，技能（skills）生成时间比较长是正常现象。**
 
 ## 模型依赖说明
 
