@@ -98,15 +98,15 @@ The web UI is not just a thin shell over APIs. It provides:
 
 ### 1. New job form
 
-![New job form placeholder](docs/images/placeholder-new-job.png)
+<img width="2549" height="1403" alt="d563512473a2539a1ae612f04205a6c9" src="https://github.com/user-attachments/assets/6cd4f4d4-3db1-4ca7-822d-002f839f8703" />
 
 ### 2. Job detail and pipeline visualization
 
-![Job detail placeholder](docs/images/placeholder-job-detail.png)
+<img width="2549" height="1403" alt="84b0e0ca60d3ed6d20cbdbedf9383290" src="https://github.com/user-attachments/assets/38d9705b-c05a-4fe0-8b34-28753be5df87" />
 
 ### 3. Exported skill folder output
 
-![Export output placeholder](docs/images/placeholder-export-output.png)
+<img width="654" height="1044" alt="image" src="https://github.com/user-attachments/assets/46ee1649-9319-4067-bd53-1da0b94b363f" />
 
 ## Quick Start
 
