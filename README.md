@@ -98,6 +98,8 @@ The web UI is not just a thin shell over APIs. It provides:
 
 <img width="2549" height="1403" alt="d563512473a2539a1ae612f04205a6c9" src="https://github.com/user-attachments/assets/6cd4f4d4-3db1-4ca7-822d-002f839f8703" />
 
+**Click on the model API in the upper right corner to directly enter the API configuration page.**
+
 ### 2. Job detail and pipeline visualization
 
 <img width="2549" height="1403" alt="84b0e0ca60d3ed6d20cbdbedf9383290" src="https://github.com/user-attachments/assets/38d9705b-c05a-4fe0-8b34-28753be5df87" />
