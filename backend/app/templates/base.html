@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SkillForge{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="shell">
+    <header class="site-header">
+      <a href="/" class="brand">SkillForge</a>
+      <nav class="site-nav">
+        <a href="/">Dashboard</a>
+        <a href="/jobs/new">New Job</a>
+        <a href="/settings/model-api">Model API</a>
+        <a href="/api/jobs">API</a>
+      </nav>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

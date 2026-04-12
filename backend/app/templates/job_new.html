@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Create Job · SkillForge{% endblock %}
+
+{% block content %}
+<section class="panel form-shell">
+  <p class="eyebrow">Distillation Intake</p>
+  <h1>Create a new job</h1>
+  <p class="lead">Point SkillForge at a large repository or document corpus and describe the capability system you want it to extract.</p>
+
+  <form method="post" action="/jobs/new" class="form-grid" id="new-job-form">
+    <label>
+      <span>Job name</span>
+      <input type="text" name="name" required placeholder="Customer onboarding knowledge distillation" />
+    </label>
+
+    <div class="full-width stack-gap-sm">
+      <label>
+        <span>Root path</span>
+        <input type="text" name="root_path" id="root-path-input" required placeholder="G:\\Projects\\work-repository" />
+      </label>
+      <div class="chip-row">
+        <button type="button" class="secondary-button" id="pick-root-path">Choose folder</button>
+      </div>
+      <p class="muted-line">Use the folder picker to choose the repository or document corpus you want SkillForge to scan.</p>
+    </div>
+
+    <label class="full-width">
+      <span>Goal</span>
+      <textarea name="goal" rows="6" required placeholder="Extract reusable skills, reference docs, and procedural checklists from this repository."></textarea>
+    </label>
+
+    <label>
+      <span>Mode</span>
+      <select name="mode">
+        {% for mode in modes %}
+        <option value="{{ mode }}">{{ mode }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div id="picker-error" class="flash-error panel hidden full-width"></div>
+
+    <div class="full-width action-row">
+      <button type="submit" class="primary-button">Create job</button>
+      <a class="secondary-link" href="/">Back to dashboard</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const rootPathInput = document.getElementById('root-path-input');
+  const pickRootPathButton = document.getElementById('pick-root-path');
+  const pickerError = document.getElementById('picker-error');
+
+  function clearPickerError() {
+    pickerError.textContent = '';
+    pickerError.classList.add('hidden');
+  }
+
+  function showPickerError(message) {
+    pickerError.textContent = message;
+    pickerError.classList.remove('hidden');
+  }
+
+  pickRootPathButton?.addEventListener('click', async () => {
+    clearPickerError();
+    pickRootPathButton.disabled = true;
+    pickRootPathButton.textContent = 'Opening...';
+    try {
+      const current = encodeURIComponent(rootPathInput.value || '');
+      const response = await fetch(`/dialog/export-directory?current=${current}`);
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        showPickerError(payload.detail || 'Unable to open the folder picker.');
+        return;
+      }
+      if (payload.path) {
+        rootPathInput.value = payload.path;
+      }
+    } catch (error) {
+      showPickerError(error.message || 'Unable to open the folder picker.');
+    } finally {
+      pickRootPathButton.disabled = false;
+      pickRootPathButton.textContent = 'Choose folder';
+    }
+  });
+})();
+</script>
+{% endblock %}

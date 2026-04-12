@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}SkillForge Dashboard{% endblock %}
+
+{% block content %}
+<section class="hero panel">
+  <div>
+    <p class="eyebrow">Repository Intelligence</p>
+    <h1>Turn giant work repositories into polished, reusable skill systems.</h1>
+    <p class="lead">SkillForge indexes folder trees, parses real documents, extracts operational evidence, composes capability clusters, and compiles complete skill packages without requiring Node.js.</p>
+  </div>
+  <a class="primary-link" href="/jobs/new">Start a new distillation job</a>
+</section>
+
+<section class="metrics-grid">
+  {% for card in cards %}
+  <article class="metric-card panel">
+    <p class="metric-label">{{ card.label }}</p>
+    <div class="metric-value">{{ card.value }}</div>
+    <p class="metric-detail">{{ card.detail }}</p>
+  </article>
+  {% endfor %}
+</section>
+
+<section class="two-column">
+  <div class="panel stack-gap">
+    <div class="section-header">
+      <div>
+        <p class="eyebrow">Control Board</p>
+        <h2>Recent Jobs</h2>
+      </div>
+    </div>
+    {% if jobs %}
+      {% for job in jobs %}
+      <a class="job-card" href="/jobs/{{ job.id }}">
+        <div class="job-card-main">
+          <div class="job-card-heading">
+            <h3>{{ job.name }}</h3>
+            <span class="chip {{ status_tone(job.status.value) }}">{{ job.status.value }}</span>
+            <span class="chip chip-muted">{{ status_label(job.status.value) }}</span>
+          </div>
+          <p class="job-goal">{{ job.goal }}</p>
+          <div class="chip-row">
+            <span class="chip chip-muted">{{ job.mode.value }}</span>
+            <span class="chip chip-muted">stage · {{ job.current_stage }}</span>
+            <span class="chip chip-muted">updated · {{ job.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+          </div>
+          {% if job.error_message %}
+          <p class="error-note">{{ job.error_stage or job.current_stage }}: {{ job.error_message }}</p>
+          {% endif %}
+        </div>
+        <div class="job-card-side">
+          <div class="progress-meta"><span>Progress</span><strong>{{ job.progress }}%</strong></div>
+          <div class="progress-bar"><span style="width: {{ job.progress }}%"></span></div>
+          <div class="kv-grid">
+            <div><span>Job ID</span><strong>{{ job.id }}</strong></div>
+            <div><span>Root</span><strong>{{ job.root_path }}</strong></div>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">No jobs yet. Create one to begin exploring a large repository.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <p class="eyebrow">Execution Model</p>
+    <h2>Pipeline Coverage</h2>
+    <div class="pipeline-grid">
+      {% for title, description in [
+        ('Scan', 'Map the repository and score high-value files.'),
+        ('Parse', 'Read md, txt, docx, pdf, and xlsx materials.'),
+        ('Extract', 'Turn parsed material into workflow evidence.'),
+        ('Cluster', 'Group evidence into capability candidates.'),
+        ('Package', 'Split content into SKILL.md, references, scripts, and assets.'),
+        ('Validate', 'Check output structure and traceability.')
+      ] %}
+      <article class="mini-card">
+        <h3>{{ title }}</h3>
+        <p>{{ description }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

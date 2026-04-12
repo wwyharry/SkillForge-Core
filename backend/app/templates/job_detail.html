@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+
+{% block title %}{{ job.name }} · SkillForge{% endblock %}
+
+{% block content %}
+<section class="detail-header panel">
+  <div>
+    <p class="eyebrow">Execution Detail</p>
+    <h1>{{ job.name }}</h1>
+    <p class="lead">{{ job.goal }}</p>
+    <div class="chip-row">
+      <span class="chip chip-muted">{{ job.mode.value }}</span>
+      <span class="chip chip-muted">stage · <span id="current-stage">{{ job.current_stage }}</span></span>
+      <span class="chip chip-muted">status · <span id="job-status">{{ job.status.value }}</span></span>
+      <span class="chip chip-muted">progress · <span id="job-progress">{{ job.progress }}</span>%</span>
+    </div>
+  </div>
+  <div class="detail-actions">
+    <form method="post" action="/jobs/{{ job.id }}/dispatch"><button type="submit" class="secondary-button">Dispatch job</button></form>
+    <form method="post" action="/jobs/{{ job.id }}/run"><button type="submit" class="primary-button">{{ 'Re-run pipeline' if job.status.value == 'completed' else 'Run pipeline' }}</button></form>
+    {% if job.status.value == 'failed' %}
+    <form method="post" action="/jobs/{{ job.id }}/retry"><button type="submit" class="warning-button">Retry failed job</button></form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel detail-overview-bar">
+  <div class="progress-meta"><span>Overall pipeline progress</span><strong><span id="job-progress-strong">{{ job.progress }}</span>%</strong></div>
+  <div class="progress-bar progress-bar-large"><span id="job-progress-bar" style="width: {{ job.progress }}%"></span></div>
+</section>
+
+<div id="error-box" class="flash-error panel{% if not job.error_message %} hidden{% endif %}">
+  <strong>Failure · <span id="error-stage-text">{{ job.error_stage or job.current_stage if job.error_message else '' }}</span></strong>
+  <p id="error-message-text">{{ job.error_message or '' }}</p>
+</div>
+
+<div id="live-banner" class="live-banner {{ 'hidden' if job.status.value in terminal_statuses else '' }}">Live updates via SSE · <span id="stream-state">live</span> · details refresh when a stage changes</div>
+
+<section class="detail-grid">
+  <div class="panel stack-gap">
+    <p class="eyebrow">Execution</p>
+    <h2>Stage Timeline</h2>
+    <div id="stage-list" class="stack-gap-sm">
+      {% for stage in job.stages %}
+      <article class="stage-card stage-status-{{ stage.status }}" data-stage="{{ stage.name }}">
+        <div class="progress-meta"><strong>{{ stage.name }}</strong><span class="stage-status-text">{{ stage.status }}</span></div>
+        <p class="stage-detail-text">{{ stage.detail or 'Awaiting execution' }}</p>
+        <div class="progress-bar"><span class="stage-progress-bar" style="width: {{ stage.progress }}%"></span></div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel stack-gap">
+    <p class="eyebrow">Runtime</p>
+    <h2>Model Usage Status</h2>
+    {% if job.usage_statuses %}
+    <div class="stack-gap-sm">
+      {% for item in job.usage_statuses %}
+      <article class="mini-card usage-card usage-status-{{ item.status }}">
+        <div class="progress-meta"><strong>{{ item.stage }} · {{ item.kind }}</strong><span>{{ item.provider or 'local' }}</span></div>
+        <div class="chip-row">
+          <span class="chip chip-muted">{{ item.status }}</span>
+          {% if item.used %}<span class="chip status-completed">used</span>{% endif %}
+          {% if item.fallback_used %}<span class="chip status-queued">fallback</span>{% endif %}
+        </div>
+        <p class="muted-line">{{ item.detail }}</p>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No model usage status captured yet.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="detail-grid lower-grid">
+  <div class="panel stack-gap">
+    <p class="eyebrow">Normalization</p>
+    <h2>Parsed Documents</h2>
+    {% if job.parsed_documents %}
+    <div class="card-grid">{% for item in job.parsed_documents %}<article class="mini-card large-card"><h3>{{ item.title }}</h3><p class="muted-line">{{ item.file_path }}</p><p>{{ item.excerpt }}</p><div class="chip-row">{% for section in item.sections %}<span class="chip chip-muted">{{ section }}</span>{% endfor %}</div></article>{% endfor %}</div>
+    {% else %}<div class="empty-state">No parsed documents yet.</div>{% endif %}
+  </div>
+
+  <div class="panel stack-gap">
+    <p class="eyebrow">Extraction</p>
+    <h2>Evidence Workbench</h2>
+    {% if job.evidences %}
+    <div class="card-grid">{% for item in job.evidences %}<article class="mini-card large-card"><h3>{{ item.task }}</h3><p class="muted-line">{{ item.subtask }}</p><p>{{ item.excerpt }}</p><div class="chip-row"><span class="chip chip-muted">{{ (item.confidence * 100)|round|int }}%</span>{% for step in item.workflow_steps[:4] %}<span class="chip chip-muted">{{ step }}</span>{% endfor %}</div></article>{% endfor %}</div>
+    {% else %}<div class="empty-state">No evidence yet.</div>{% endif %}
+  </div>
+</section>
+
+<section class="detail-grid lower-grid">
+  <div class="panel stack-gap">
+    <p class="eyebrow">Retrieval</p>
+    <h2>Retrieved Context</h2>
+    {% if job.retrieval_traces %}
+    <div class="stack-gap-sm">
+      {% for trace in job.retrieval_traces %}
+      <details class="skill-details">
+        <summary>{{ trace.scope }} · {{ trace.target_id }} · {{ trace.query }}</summary>
+        {% if trace.items %}
+        <div class="stack-gap-sm retrieval-list">
+          {% for item in trace.items %}
+          <article class="code-card retrieval-card">
+            <div class="progress-meta"><strong>{{ item.file_path }}</strong><span>score {{ item.score }}</span></div>
+            <p class="muted-line">{{ item.title }}</p>
+            <pre>{{ item.text }}</pre>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">No retrieved chunks recorded for this step.</div>
+        {% endif %}
+      </details>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No retrieval traces captured yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel stack-gap">
+    <p class="eyebrow">Composition</p>
+    <h2>Capability Clusters</h2>
+    {% if job.capabilities %}
+    <div class="card-grid">{% for item in job.capabilities %}<article class="mini-card large-card"><h3>{{ item.name }}</h3><p>{{ item.summary }}</p><div class="chip-row"><span class="chip chip-muted">{{ item.suggested_packaging }}</span>{% for task in item.core_tasks[:4] %}<span class="chip chip-muted">{{ task }}</span>{% endfor %}</div></article>{% endfor %}</div>
+    {% else %}<div class="empty-state">No capability clusters yet.</div>{% endif %}
+  </div>
+</section>
+
+<section class="detail-grid lower-grid">
+  <div class="panel stack-gap">
+    <p class="eyebrow">Compiler</p>
+    <h2>Skill Plans</h2>
+    {% if job.skill_plans %}
+    <div class="card-grid">{% for plan in job.skill_plans %}<article class="mini-card large-card"><h3>{{ plan.skill_name }}</h3><p>{{ plan.description_draft }}</p><div class="chip-row">{% for item in plan.references %}<span class="chip chip-muted">{{ item.filename }}</span>{% endfor %}{% for item in plan.scripts %}<span class="chip chip-muted">{{ item.filename }}</span>{% endfor %}{% for item in plan.assets %}<span class="chip chip-muted">{{ item.filename }}</span>{% endfor %}</div></article>{% endfor %}</div>
+    {% else %}<div class="empty-state">No skill plans generated yet.</div>{% endif %}
+  </div>
+</section>
+
+<section class="panel stack-gap">
+  <p class="eyebrow">Output Preview</p>
+  <h2>Generated Skills</h2>
+  {% if job.generated_skills %}
+  <form method="post" action="/jobs/{{ job.id }}/export" class="export-form" id="export-form">
+    <div class="chip-row">
+      <input type="text" id="export-dir-input" name="output_dir" value="skillforge-export" placeholder="Choose export folder" required />
+      <button type="button" class="secondary-button" id="pick-export-dir">Choose folder</button>
+    </div>
+    <p class="muted-line">You can export into any folder. If same-path files already exist, an inline overwrite review will appear here.</p>
+    <button type="submit" class="primary-button" id="export-submit-button">Export to folder</button>
+  </form>
+
+  {% if exported %}
+  <div id="export-success-box" class="flash-success panel">Generated skills exported successfully.</div>
+  {% else %}
+  <div id="export-success-box" class="flash-success panel hidden"></div>
+  {% endif %}
+
+  {% if export_error %}
+  <div id="export-error-box" class="flash-error panel">
+    {{ export_error }}
+    {% if export_conflicts %}<div class="muted-line">Conflicting files were detected. Review the target folder, or enable overwrite if you want to replace the existing files.</div>{% endif %}
+  </div>
+  {% else %}
+  <div id="export-error-box" class="flash-error panel hidden"></div>
+  {% endif %}
+
+  <div id="export-conflict-box" class="flash-error panel hidden">
+    <strong>Overwrite required</strong>
+    <p class="muted-line">Some files already exist in the selected destination. Review the list below and choose whether to overwrite them.</p>
+    <ul id="export-conflict-list" class="conflict-list"></ul>
+    <div class="action-row">
+      <button type="button" class="warning-button" id="confirm-export-overwrite">Overwrite files</button>
+      <button type="button" class="secondary-button" id="cancel-export-overwrite">Cancel</button>
+    </div>
+  </div>
+  <div class="stack-gap-sm">{% for skill in job.generated_skills %}<details class="skill-details"><summary>{{ skill.skill_name }} — {{ skill.description }}</summary>{% for file in skill.files %}<article class="code-card"><h4>{{ file.path }}</h4><pre>{{ file.content }}</pre></article>{% endfor %}</details>{% endfor %}</div>
+  {% else %}<div class="empty-state">No generated skill folders yet.</div>{% endif %}
+  {% if job.validation_report %}<div class="validation-box"><strong>Validation · {{ job.validation_report.score }}/100</strong><p>{{ job.validation_report.summary }}</p></div>{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const jobId = {{ job.id|tojson }};
+  const terminalStatuses = new Set(['completed', 'failed']);
+  const statusToStage = { queued: 'queue', scanning: 'scan', parsing: 'parse', extracting: 'extract', clustering: 'cluster', packaging: 'package', compiling: 'compile', validating: 'validate' };
+  const stageOrder = ['queue', 'scan', 'parse', 'extract', 'cluster', 'package', 'compile', 'validate'];
+  const stageDetails = { queued: 'Queued for asynchronous processing', scanning: 'Scanning repository and building inventory', parsing: 'Parsing candidate documents', extracting: 'Extracting workflow evidence from parsed documents', clustering: 'Composing capability clusters', packaging: 'Planning skill packaging', compiling: 'Compiling generated skills', validating: 'Validating generated skills', completed: 'Completed', failed: 'Execution failed' };
+  const streamState = document.getElementById('stream-state');
+  const banner = document.getElementById('live-banner');
+  const statusNode = document.getElementById('job-status');
+  const stageNode = document.getElementById('current-stage');
+  const progressNode = document.getElementById('job-progress');
+  const progressStrong = document.getElementById('job-progress-strong');
+  const progressBar = document.getElementById('job-progress-bar');
+  const errorBox = document.getElementById('error-box');
+  const errorStageText = document.getElementById('error-stage-text');
+  const errorMessageText = document.getElementById('error-message-text');
+  const exportSuccessBox = document.getElementById('export-success-box');
+  const exportErrorBox = document.getElementById('export-error-box');
+  const exportConflictBox = document.getElementById('export-conflict-box');
+  const exportConflictList = document.getElementById('export-conflict-list');
+  const confirmExportOverwriteButton = document.getElementById('confirm-export-overwrite');
+  const cancelExportOverwriteButton = document.getElementById('cancel-export-overwrite');
+  const exportForm = document.getElementById('export-form');
+  const exportDirInput = document.getElementById('export-dir-input');
+  const pickExportDirButton = document.getElementById('pick-export-dir');
+  let lastStage = stageNode.textContent.trim();
+  let reloadTimer = null;
+
+  function scheduleReload(delay = 900) {
+    if (reloadTimer) return;
+    reloadTimer = window.setTimeout(() => window.location.reload(), delay);
+  }
+
+  function showExportSuccess(message) {
+    if (!exportSuccessBox) return;
+    exportSuccessBox.textContent = message;
+    exportSuccessBox.classList.remove('hidden');
+  }
+
+  function clearExportSuccess() {
+    if (!exportSuccessBox) return;
+    exportSuccessBox.textContent = '';
+    exportSuccessBox.classList.add('hidden');
+  }
+
+  function showExportError(message) {
+    if (!exportErrorBox) return;
+    exportErrorBox.innerHTML = `<div>${message}</div>`;
+    exportErrorBox.classList.remove('hidden');
+  }
+
+  function clearExportError() {
+    if (!exportErrorBox) return;
+    exportErrorBox.innerHTML = '';
+    exportErrorBox.classList.add('hidden');
+  }
+
+  function renderConflictList(conflicts) {
+    if (!exportConflictList) return;
+    exportConflictList.innerHTML = (conflicts || [])
+      .slice(0, 12)
+      .map((item) => `<li>${item}</li>`)
+      .join('');
+  }
+
+  function showConflictReview(conflicts) {
+    renderConflictList(conflicts);
+    if (exportConflictBox) {
+      exportConflictBox.classList.remove('hidden');
+    }
+  }
+
+  function hideConflictReview() {
+    if (exportConflictBox) {
+      exportConflictBox.classList.add('hidden');
+    }
+    if (exportConflictList) {
+      exportConflictList.innerHTML = '';
+    }
+  }
+
+  function updateError(payload) {
+    if (!errorBox) return;
+    if (payload.error_message) {
+      errorBox.classList.remove('hidden');
+      errorStageText.textContent = payload.error_stage || payload.current_stage;
+      errorMessageText.textContent = payload.error_message;
+    } else {
+      errorBox.classList.add('hidden');
+      errorStageText.textContent = '';
+      errorMessageText.textContent = '';
+    }
+  }
+
+  function applyStageStatus(payload) {
+    const activeStage = statusToStage[payload.status] || null;
+    const activeIndex = activeStage ? stageOrder.indexOf(activeStage) : -1;
+    document.querySelectorAll('[data-stage]').forEach((card) => {
+      const stageName = card.getAttribute('data-stage');
+      const currentIndex = stageOrder.indexOf(stageName);
+      const statusText = card.querySelector('.stage-status-text');
+      const detailText = card.querySelector('.stage-detail-text');
+      const bar = card.querySelector('.stage-progress-bar');
+      let state = 'pending';
+      let percent = 0;
+      let detail = 'Awaiting execution';
+      if (payload.status === 'completed') {
+        state = 'completed';
+        percent = 100;
+        detail = 'Completed';
+      } else if (payload.status === 'failed' && stageName === activeStage) {
+        state = 'failed';
+        percent = Math.max(payload.progress, 1);
+        detail = payload.error_message || stageDetails.failed;
+      } else if (activeIndex >= 0 && currentIndex < activeIndex) {
+        state = 'completed';
+        percent = 100;
+        detail = 'Completed';
+      } else if (activeIndex >= 0 && currentIndex === activeIndex) {
+        state = 'running';
+        percent = payload.progress;
+        detail = stageDetails[payload.status] || 'Running';
+      }
+      card.className = `stage-card stage-status-${state}`;
+      statusText.textContent = state;
+      detailText.textContent = detail;
+      bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+    });
+  }
+
+  async function submitExport(overwrite = false) {
+    if (!exportForm) return;
+    clearExportSuccess();
+    clearExportError();
+    if (!overwrite) {
+      hideConflictReview();
+    }
+    const formData = new FormData(exportForm);
+    if (overwrite) {
+      formData.set('overwrite', 'on');
+    }
+    const response = await fetch(exportForm.action, {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json();
+    if (payload.ok) {
+      hideConflictReview();
+      showExportSuccess(payload.message || 'Generated skills exported successfully.');
+      return;
+    }
+    if (payload.requires_confirmation) {
+      showConflictReview(payload.conflicts || []);
+      return;
+    }
+    hideConflictReview();
+    showExportError(payload.detail || payload.export_error || 'Export failed.');
+  }
+
+  if (pickExportDirButton && exportDirInput) {
+    pickExportDirButton.addEventListener('click', async () => {
+      pickExportDirButton.disabled = true;
+      const originalText = pickExportDirButton.textContent;
+      pickExportDirButton.textContent = 'Opening...';
+      try {
+        const current = encodeURIComponent(exportDirInput.value || '');
+        const response = await fetch(`/dialog/export-directory?current=${current}`);
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          window.alert(payload.detail || 'Could not open folder picker.');
+          return;
+        }
+        if (payload.path) {
+          exportDirInput.value = payload.path;
+        }
+      } catch (error) {
+        window.alert(error.message || 'Could not open folder picker.');
+      } finally {
+        pickExportDirButton.disabled = false;
+        pickExportDirButton.textContent = originalText;
+      }
+    });
+  }
+
+  if (exportForm) {
+    exportForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await submitExport(false);
+      } catch (error) {
+        showExportError(error.message || 'Export failed.');
+      }
+    });
+  }
+
+  if (confirmExportOverwriteButton) {
+    confirmExportOverwriteButton.addEventListener('click', async () => {
+      try {
+        await submitExport(true);
+      } catch (error) {
+        showExportError(error.message || 'Export failed.');
+      }
+    });
+  }
+
+  if (cancelExportOverwriteButton) {
+    cancelExportOverwriteButton.addEventListener('click', () => {
+      hideConflictReview();
+    });
+  }
+
+  if (terminalStatuses.has(statusNode.textContent.trim())) return;
+  const source = new EventSource(`/api/jobs/${jobId}/events`);
+  source.addEventListener('status', (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      streamState.textContent = 'live';
+      statusNode.textContent = payload.status;
+      stageNode.textContent = payload.current_stage;
+      progressNode.textContent = payload.progress;
+      progressStrong.textContent = payload.progress;
+      progressBar.style.width = `${payload.progress}%`;
+      updateError(payload);
+      applyStageStatus(payload);
+      if (terminalStatuses.has(payload.status)) {
+        banner.classList.add('hidden');
+        source.close();
+        scheduleReload(700);
+        return;
+      }
+      banner.classList.remove('hidden');
+      if (payload.current_stage !== lastStage) {
+        lastStage = payload.current_stage;
+        scheduleReload(1100);
+      }
+    } catch (_err) {}
+  });
+  source.onerror = () => {
+    streamState.textContent = 'reconnecting';
+  };
+})();
+</script>
+{% endblock %}

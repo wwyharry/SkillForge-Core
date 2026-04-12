@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block title %}Model API Settings · SkillForge{% endblock %}
+
+{% block content %}
+<section class="panel form-shell settings-shell">
+  <div class="settings-hero">
+    <div>
+      <p class="eyebrow">External Model Access</p>
+      <h1>Configure third-party model API</h1>
+      <p class="lead">Set the provider endpoint, key, model identifiers, runtime knobs, and custom headers used by your external LLM service.</p>
+    </div>
+    <div class="settings-status-card">
+      <span class="chip {{ 'status-completed' if config.enabled else 'chip-muted' }}">{{ 'enabled' if config.enabled else 'disabled' }}</span>
+      {% if config.api_key_masked %}
+      <p class="muted-line">Saved key · {{ config.api_key_masked }}</p>
+      {% else %}
+      <p class="muted-line">No API key saved yet.</p>
+      {% endif %}
+      <p class="muted-line" id="provider-hint">Provider guide will update after you choose a provider.</p>
+    </div>
+  </div>
+
+  {% if saved %}
+  <div class="flash-success panel">Model API configuration saved successfully.</div>
+  {% endif %}
+
+  <form method="post" action="/settings/model-api" class="form-grid settings-form" id="model-api-form">
+    <label>
+      <span>Provider</span>
+      <select name="provider" id="provider-select">
+        {% for option in ['openai-compatible', 'openai', 'openrouter', 'deepseek', 'azure-openai', 'anthropic-compatible', 'custom'] %}
+        <option value="{{ option }}" {% if config.provider == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      <span>API base URL</span>
+      <input type="text" name="base_url" value="{{ config.base_url }}" placeholder="https://api.example.com/v1" />
+    </label>
+
+    <label id="model-name-field">
+      <span>Model name</span>
+      <input type="text" name="model_name" value="{{ config.model_name }}" placeholder="gpt-4.1-mini" />
+    </label>
+
+    <label>
+      <span>Embedding model</span>
+      <input type="text" name="embedding_model" value="{{ config.embedding_model }}" placeholder="text-embedding-3-large" />
+    </label>
+
+    <label id="deployment-name-field">
+      <span>Deployment name</span>
+      <input type="text" name="deployment_name" value="{{ config.deployment_name }}" placeholder="azure deployment name" />
+    </label>
+
+    <label id="api-version-field">
+      <span>API version</span>
+      <input type="text" name="api_version" value="{{ config.api_version }}" placeholder="2024-10-21" />
+    </label>
+
+    <label>
+      <span>API key</span>
+      <input type="password" name="api_key" value="" placeholder="Leave blank to keep existing key" />
+    </label>
+
+    <label>
+      <span>Organization</span>
+      <input type="text" name="organization" value="{{ config.organization }}" placeholder="org_xxx" />
+    </label>
+
+    <label>
+      <span>Project</span>
+      <input type="text" name="project" value="{{ config.project }}" placeholder="project identifier" />
+    </label>
+
+    <label>
+      <span>Timeout seconds</span>
+      <input type="number" name="timeout_seconds" min="1" value="{{ config.timeout_seconds }}" />
+    </label>
+
+    <label>
+      <span>Max tokens</span>
+      <input type="number" name="max_tokens" min="1" value="{{ config.max_tokens }}" />
+    </label>
+
+    <label>
+      <span>Temperature</span>
+      <input type="number" step="0.1" min="0" max="2" name="temperature" value="{{ config.temperature }}" />
+    </label>
+
+    <label>
+      <span>Top P</span>
+      <input type="number" step="0.1" min="0" max="1" name="top_p" value="{{ config.top_p }}" />
+    </label>
+
+    <label class="full-width">
+      <span>Notes</span>
+      <textarea name="notes" rows="5" placeholder="Optional routing notes, rate limit hints, deployment notes, or tenancy reminders.">{{ config.notes }}</textarea>
+    </label>
+
+    <div class="full-width provider-guide" id="provider-guide"></div>
+
+    <div class="full-width settings-toggles">
+      <label class="checkbox-row"><input type="checkbox" name="enabled" {% if config.enabled %}checked{% endif %} />Enable external model API</label>
+      <label class="checkbox-row"><input type="checkbox" name="verify_ssl" {% if config.verify_ssl %}checked{% endif %} />Verify SSL</label>
+      <label class="checkbox-row"><input type="checkbox" name="use_streaming" {% if config.use_streaming %}checked{% endif %} />Use streaming responses</label>
+    </div>
+
+    <div class="full-width headers-panel">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Headers</p>
+          <h2>Custom request headers</h2>
+        </div>
+        <button type="button" class="secondary-button" id="add-header-row">Add header</button>
+      </div>
+      <div id="headers-list" class="stack-gap-sm">
+        {% for header in config.extra_headers %}
+        <div class="header-row">
+          <input type="text" name="extra_header_names" value="{{ header.name }}" placeholder="Header name" />
+          <input type="text" name="extra_header_values" value="{{ header.value }}" placeholder="Header value" />
+          <button type="button" class="secondary-button remove-header">Remove</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="full-width action-row">
+      <button type="submit" class="primary-button">Save API configuration</button>
+      <button type="button" class="secondary-button" id="test-connection-button">Test connection</button>
+      <a class="secondary-link" href="/">Back to dashboard</a>
+    </div>
+  </form>
+
+  <div id="test-result" class="validation-box hidden"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const list = document.getElementById('headers-list');
+  const addButton = document.getElementById('add-header-row');
+  const testButton = document.getElementById('test-connection-button');
+  const testResult = document.getElementById('test-result');
+  const form = document.getElementById('model-api-form');
+  const providerSelect = document.getElementById('provider-select');
+  const providerGuide = document.getElementById('provider-guide');
+  const providerHint = document.getElementById('provider-hint');
+  const deploymentNameField = document.getElementById('deployment-name-field');
+  const apiVersionField = document.getElementById('api-version-field');
+  const modelNameField = document.getElementById('model-name-field');
+
+  const providerMeta = {
+    'openai-compatible': {
+      hint: 'Works for OpenAI-style endpoints with /models and /chat/completions.',
+      guide: 'Use for generic OpenAI-compatible gateways. Example base URL: https://api.example.com/v1. Set an embedding model if you want semantic file ranking.',
+      showDeployment: false,
+      showApiVersion: false,
+      showModelName: true,
+    },
+    'openai': {
+      hint: 'Use the standard OpenAI REST format.',
+      guide: 'Example base URL: https://api.openai.com/v1. Set an embedding model if you want semantic file ranking.',
+      showDeployment: false,
+      showApiVersion: false,
+      showModelName: true,
+    },
+    'openrouter': {
+      hint: 'Use OpenRouter with OpenAI-compatible chat routes.',
+      guide: 'Example base URL: https://openrouter.ai/api/v1. Custom headers may be useful for referer/title. You can also set an embedding model for semantic ranking.',
+      showDeployment: false,
+      showApiVersion: false,
+      showModelName: true,
+    },
+    'deepseek': {
+      hint: 'Use DeepSeek OpenAI-compatible endpoints.',
+      guide: 'Example base URL: https://api.deepseek.com/v1. If your account supports embeddings, fill the embedding model too.',
+      showDeployment: false,
+      showApiVersion: false,
+      showModelName: true,
+    },
+    'azure-openai': {
+      hint: 'Requires Azure resource endpoint, deployment name, and API version.',
+      guide: 'Example base URL: https://your-resource.openai.azure.com/. Set deployment name and API version. Use embedding model for the embeddings deployment if it differs from chat deployment.',
+      showDeployment: true,
+      showApiVersion: true,
+      showModelName: false,
+    },
+    'anthropic-compatible': {
+      hint: 'Uses Anthropic-style /messages requests and x-api-key auth.',
+      guide: 'Example base URL: https://api.anthropic.com/v1. API version defaults to 2023-06-01 if empty. Embeddings are only available if your Anthropic-compatible gateway exposes them.',
+      showDeployment: false,
+      showApiVersion: true,
+      showModelName: true,
+    },
+    'custom': {
+      hint: 'Use custom OpenAI-compatible behavior plus your own headers.',
+      guide: 'Best when your provider is gateway-based but still exposes OpenAI-style routes. Add embedding model if semantic ranking is needed.',
+      showDeployment: false,
+      showApiVersion: false,
+      showModelName: true,
+    },
+  };
+
+  function bindRemove(button) {
+    button.addEventListener('click', () => {
+      const rows = list.querySelectorAll('.header-row');
+      if (rows.length === 1) {
+        rows[0].querySelector('input[name="extra_header_names"]').value = '';
+        rows[0].querySelector('input[name="extra_header_values"]').value = '';
+        return;
+      }
+      button.parentElement.remove();
+    });
+  }
+
+  function collectConfig() {
+    const formData = new FormData(form);
+    return {
+      provider: formData.get('provider') || 'openai-compatible',
+      base_url: formData.get('base_url') || '',
+      api_key: formData.get('api_key') || '',
+      model_name: formData.get('model_name') || '',
+      embedding_model: formData.get('embedding_model') || '',
+      deployment_name: formData.get('deployment_name') || '',
+      api_version: formData.get('api_version') || '',
+      organization: formData.get('organization') || '',
+      project: formData.get('project') || '',
+      timeout_seconds: Number(formData.get('timeout_seconds') || 120),
+      max_tokens: Number(formData.get('max_tokens') || 4096),
+      temperature: Number(formData.get('temperature') || 0.2),
+      top_p: Number(formData.get('top_p') || 1.0),
+      enabled: formData.get('enabled') === 'on',
+      verify_ssl: formData.get('verify_ssl') === 'on',
+      use_streaming: formData.get('use_streaming') === 'on',
+      notes: formData.get('notes') || '',
+      extra_headers: Array.from(list.querySelectorAll('.header-row')).map((row) => ({
+        name: row.querySelector('input[name="extra_header_names"]').value,
+        value: row.querySelector('input[name="extra_header_values"]').value,
+      })).filter((item) => item.name.trim()),
+    };
+  }
+
+  function showResult(ok, message, models = []) {
+    testResult.classList.remove('hidden');
+    const title = ok ? 'Connection succeeded' : 'Connection failed';
+    const modelLine = models.length ? `<p><strong>Available models:</strong> ${models.join(', ')}</p>` : '';
+    testResult.innerHTML = `<strong>${title}</strong><p>${message}</p>${modelLine}`;
+  }
+
+  function updateProviderGuide() {
+    const meta = providerMeta[providerSelect.value] || providerMeta['openai-compatible'];
+    providerHint.textContent = meta.hint;
+    providerGuide.innerHTML = `<strong>Provider guide</strong><p>${meta.guide}</p>`;
+    deploymentNameField.classList.toggle('hidden', !meta.showDeployment);
+    apiVersionField.classList.toggle('hidden', !meta.showApiVersion);
+    modelNameField.classList.toggle('hidden', !meta.showModelName);
+  }
+
+  list.querySelectorAll('.remove-header').forEach(bindRemove);
+
+  addButton.addEventListener('click', () => {
+    const row = document.createElement('div');
+    row.className = 'header-row';
+    row.innerHTML = `
+      <input type="text" name="extra_header_names" value="" placeholder="Header name" />
+      <input type="text" name="extra_header_values" value="" placeholder="Header value" />
+      <button type="button" class="secondary-button remove-header">Remove</button>
+    `;
+    list.appendChild(row);
+    bindRemove(row.querySelector('.remove-header'));
+  });
+
+  providerSelect.addEventListener('change', updateProviderGuide);
+  updateProviderGuide();
+
+  testButton.addEventListener('click', async () => {
+    testButton.disabled = true;
+    testButton.textContent = 'Testing...';
+    try {
+      const response = await fetch('/api/settings/model-api/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: collectConfig() }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        showResult(false, payload.detail || 'Connection test failed.');
+      } else {
+        showResult(payload.ok, payload.message, payload.models || []);
+      }
+    } catch (error) {
+      showResult(false, error.message || 'Connection test failed.');
+    } finally {
+      testButton.disabled = false;
+      testButton.textContent = 'Test connection';
+    }
+  });
+})();
+</script>
+{% endblock %}
