@@ -1,0 +1,11 @@
+# Ignore local runtime state
+backend/.env
+backend/data/model_api_config.json
+backend/data/*.db
+backend/exports/
+.skillforge/
+
+# Python environments and caches
+backend/.venv/
+**/__pycache__/
+*.pyc
