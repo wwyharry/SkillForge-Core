@@ -175,6 +175,7 @@ exports/
     └── assets/
         └── template.txt
 ```
+**It is normal for the skills generation to take a relatively long time due to the large number of files.**
 
 This makes the result reviewable, portable, and easy to iterate on.
 
