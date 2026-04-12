@@ -181,8 +181,7 @@ This makes the result reviewable, portable, and easy to iterate on.
 
 ## Model Requirements
 
-SkillForge can run locally **without configuring any external model API**.
-
+In general, it is highly recommended to configure an external large model API to experience the full functionality of the agent.
 Current default behavior is local-first:
 
 - repository scanning works without external models
@@ -198,6 +197,8 @@ Today, the built-in configuration supports provider-style settings for:
 - Azure OpenAI-style endpoints
 - Anthropic-compatible endpoints
 - custom compatible endpoints
+
+If you want to write a complete set of skills, you still need to configure an external large model api。
 
 ## Complete Tech Stack
 
