@@ -129,12 +129,6 @@ pip install -e .
 python start_skillforge.py
 ```
 
-Windows 下也可以运行：
-
-```bash
-start_skillforge.bat
-```
-
 然后访问：
 
 ```text
