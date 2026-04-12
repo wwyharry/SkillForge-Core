@@ -136,12 +136,6 @@ From the repository root:
 python start_skillforge.py
 ```
 
-On Windows, you can also run:
-
-```bash
-start_skillforge.bat
-```
-
 Then open:
 
 ```text
