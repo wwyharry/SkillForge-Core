@@ -94,8 +94,6 @@ The web UI is not just a thin shell over APIs. It provides:
 
 ## Screenshots
 
-> Replace these placeholders with your own screenshots or GIFs.
-
 ### 1. New job form
 
 <img width="2549" height="1403" alt="d563512473a2539a1ae612f04205a6c9" src="https://github.com/user-attachments/assets/6cd4f4d4-3db1-4ca7-822d-002f839f8703" />
